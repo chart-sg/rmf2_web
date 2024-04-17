@@ -1,7 +1,10 @@
+import asyncio
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional, Tuple, cast
 
 from fastapi import Body, Depends, HTTPException, Path, Query
+from pydantic import BaseModel
 from reactivex import operators as rxops
 
 from api_server import models as mdl
@@ -17,6 +20,9 @@ from api_server.models.tortoise_models import TaskState as DbTaskState
 from api_server.repositories import TaskRepository, task_repo_dep
 from api_server.response import RawJSONResponse
 from api_server.rmf_io import task_events, tasks_service
+
+# from api_server.workflows import AdmitFFFlow, SendAWFlow, TestFlow
+from api_server.workflows import TestFlow
 
 router = FastIORouter(tags=["Tasks"])
 
@@ -137,6 +143,46 @@ async def post_cancel_task(
     request: mdl.CancelTaskRequest = Body(...),
 ):
     return RawJSONResponse(await tasks_service().call(request.json(exclude_none=True)))
+
+
+# place here for now
+class ServiceType(Enum):
+    send_aw = "send_aw"
+    admit_ff = "admit_ff"
+    admit_iso = "admit_iso"
+    send_commode = "send_commode"
+    send_diaper = "send_diaper"
+    test = "test"
+
+
+class ServiceData(BaseModel):
+    robot_id: str
+    patient_id: str = None
+
+
+class ServiceTask(BaseModel):
+    service_id: ServiceType
+    data: ServiceData
+    requester: str = None
+
+
+@router.post("/service_task")
+async def post_service_task(service_task: ServiceTask):
+    # if service_task.service_id == ServiceType.send_aw:
+    #     workflow = SendAWFlow(service_task)
+    # elif service_task.service_id == ServiceType.admit_ff:
+    #     workflow = AdmitFFFlow(service_task)
+
+    if service_task.service_id == ServiceType.test:
+        workflow = TestFlow(service_task)
+    else:
+        return {"status": "Invalid Workflow"}
+
+    await workflow.start_workflow()
+    # asyncio.create_task(workflow.start_workflow())
+
+    # asyncio.create_task(send_aw_service.add_sequences_and_start(send_aw_task))
+    return {"status": "Workflow started"}
 
 
 @router.post(

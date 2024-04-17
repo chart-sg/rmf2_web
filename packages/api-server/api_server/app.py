@@ -33,7 +33,17 @@ from .models import (
 )
 from .models import tortoise_models as ttm
 from .repositories import TaskRepository
-from .rmf_io import HealthWatchdog, RmfBookKeeper, rmf_events
+from .rmf_io import (
+    HealthWatchdog,
+    RmfBookKeeper,
+    alert_events,
+    fleet_events,
+    rmf_events,
+    sensor_events,
+    task_events,
+)
+from .rmf_io.rmf2_event import eventManager
+from .rmf_io.state_monitor import stateMonitor
 from .types import is_coroutine
 
 
@@ -183,6 +193,16 @@ async def on_startup():
         logger=logger.getChild("HealthWatchdog"),
     )
     await health_watchdog.start()
+
+    # asraf_watchdog = StateMonitor(rmf_events, fleet_events, task_events,logger)
+    asraf_watchdog = stateMonitor(
+        rmf_events, fleet_events, task_events, alert_events, sensor_events, logger
+    )
+    await asraf_watchdog.start()
+    logger.warn("starting asraf listener")
+
+    event_manager = eventManager(sensor_events=sensor_events)
+    await event_manager.start()
 
     logger.info("starting scheduler")
     asyncio.create_task(_spin_scheduler())
