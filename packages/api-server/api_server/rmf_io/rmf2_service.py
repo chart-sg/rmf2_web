@@ -61,7 +61,8 @@ class ServiceSequence:
 
     async def process_next(self, status: str = "pass"):
 
-        self.out_data = {"task_id": self.task_id}
+        # self.out_data = {"task_id": self.task_id}
+
         if status == "pass":
             if self.next_task:
                 if isinstance(self.next_task, list):
@@ -185,7 +186,8 @@ class SequenceCustom(ServiceSequence):
     async def start(self):
         logger.info(f"{self.name} task (custom) started")
         await asyncio.sleep(5)
-        await self.process_next()
+        logger.info(f"{self.name} task (custom) completed")
+        await self.process_next(status="pass")
 
 
 class SequenceRoboticTask(ServiceSequence):
