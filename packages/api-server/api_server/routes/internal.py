@@ -57,10 +57,12 @@ async def process_msg(msg: Dict[str, Any], fleet_repo: FleetRepository) -> None:
         await task_repo.save_task_state(task_state)
         task_events.task_states.on_next(task_state)
 
-        if task_state.status == mdl.Status.completed:
-            alert = await alert_repo.create_alert(task_state.booking.id, "task")
-            if alert is not None:
-                alert_events.alerts.on_next(alert)
+        # TODO: we comment alert creation and do this in rmf2_service instead
+        # if task_state.status == mdl.Status.completed:
+        #     alert = await alert_repo.create_alert(task_state.booking.id, "task")
+        #     logger.warn(f"task id: {task_state.booking.id} is completed, save in db")
+        #     if alert is not None:
+        #         alert_events.alerts.on_next(alert)
 
     elif payload_type == "task_log_update":
         task_log = mdl.TaskEventLog(**msg["data"])
@@ -86,6 +88,7 @@ async def process_msg(msg: Dict[str, Any], fleet_repo: FleetRepository) -> None:
 @router.websocket("")
 async def rmf_gateway(websocket: WebSocket):
     await websocket.accept()
+    logger.warn("ASRAF: WEBSOCKET ACCEPTED")
     fleet_repo = FleetRepository(user)
     try:
         while True:
