@@ -34,8 +34,19 @@ class AlertRepository:
         return alert_pydantic
 
     async def create_alert(
-        self, alert_id: str, category: str
+        self,
+        alert_id: str,
+        category: str,
+        user_group: str = None,
+        message: str = None,
+        message_action: str = None,
     ) -> Optional[ttm.AlertPydantic]:
+
+        # get user_group from db via id
+        user_group_instance = None
+        if user_group:
+            user_group_instance = await ttm.UserGroup.get(name=user_group)
+
         alert, _ = await ttm.Alert.update_or_create(
             {
                 "original_id": alert_id,
@@ -43,6 +54,10 @@ class AlertRepository:
                 "unix_millis_created_time": round(datetime.now().timestamp() * 1e3),
                 "acknowledged_by": None,
                 "unix_millis_acknowledged_time": None,
+                "message": message,
+                "user_group": user_group_instance,
+                "message_action": message_action,
+                "user_action": None,
             },
             id=alert_id,
         )
@@ -85,14 +100,16 @@ class AlertRepository:
         await ack_alert.save()
 
         # Save in logs who was the user that acknowledged the task
-        try:
-            await self.task_repo.save_log_acknowledged_task_completion(
-                alert.id, self.user.username, unix_millis_acknowledged_time
-            )
-        except Exception as e:
-            raise RuntimeError(
-                f"Error in save_log_acknowledged_task_completion {e}"
-            ) from e
+        # only do this if category = task
+        if alert.category == alert.Category.Task:
+            try:
+                await self.task_repo.save_log_acknowledged_task_completion(
+                    alert.id, self.user.username, unix_millis_acknowledged_time
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    f"Error in save_log_acknowledged_task_completion {e}"
+                ) from e
 
         await alert.delete()
         ack_alert_pydantic = await ttm.AlertPydantic.from_tortoise_orm(ack_alert)

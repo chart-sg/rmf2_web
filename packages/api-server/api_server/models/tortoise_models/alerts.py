@@ -1,7 +1,7 @@
 from enum import Enum
 
 from tortoise.contrib.pydantic.creator import pydantic_model_creator
-from tortoise.fields import BigIntField, CharEnumField, CharField
+from tortoise.fields import BigIntField, CharEnumField, CharField, ForeignKeyField
 from tortoise.models import Model
 
 
@@ -22,6 +22,12 @@ class Alert(Model):
     unix_millis_created_time = BigIntField(null=False, index=True)
     acknowledged_by = CharField(255, null=True, index=True)
     unix_millis_acknowledged_time = BigIntField(null=True, index=True)
+    message = CharField(255, null=True, index=True)
+    user_group: ForeignKeyField = ForeignKeyField(
+        "models.UserGroup", related_name="alerts", null=True
+    )
+    message_action = CharField(255, null=True, index=False)
+    user_action = CharField(255, null=True, index=False)
 
 
 AlertPydantic = pydantic_model_creator(Alert)

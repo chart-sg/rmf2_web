@@ -1,6 +1,7 @@
 from typing import List
 
 from fastapi import Depends, HTTPException
+from pydantic import BaseModel
 from reactivex import operators as rxops
 
 from api_server.fast_io import FastIORouter, SubscriptionRequest
@@ -29,11 +30,30 @@ async def get_alert(alert_id: str, repo: AlertRepository = Depends(alert_repo_de
     return alert
 
 
+class AlertPayload(BaseModel):
+    message: str = None
+    message_action: str = None
+
+
 @router.post("", status_code=201, response_model=ttm.AlertPydantic)
 async def create_alert(
-    alert_id: str, category: str, repo: AlertRepository = Depends(alert_repo_dep)
+    alert_id: str,
+    category: str,
+    user_group: str = None,
+    body: AlertPayload = None,
+    repo: AlertRepository = Depends(alert_repo_dep),
 ):
-    alert = await repo.create_alert(alert_id, category)
+    message = body.message if body and body.message else None
+    message_action = body.message_action if body and body.message_action else None
+
+    alert = await repo.create_alert(
+        alert_id=alert_id,
+        category=category,
+        user_group=user_group,
+        message=message,
+        message_action=message_action,
+    )
+
     if alert is None:
         raise HTTPException(404, f"Could not create alert with ID {alert_id}")
     return alert
@@ -45,6 +65,6 @@ async def acknowledge_alert(
 ):
     alert = await repo.acknowledge_alert(alert_id)
     if alert is None:
-        raise HTTPException(404, f"Could acknowledge alert with ID {alert_id}")
+        raise HTTPException(404, f"Could not acknowledge alert with ID {alert_id}")
     alert_events.alerts.on_next(alert)
     return alert

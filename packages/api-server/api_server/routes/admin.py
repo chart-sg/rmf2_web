@@ -15,6 +15,11 @@ from api_server.repositories.rmf import RmfRepository, rmf_repo_dep
 class PostUsers(BaseModel):
     username: str
     is_admin: bool = False
+    user_group: str = None
+
+
+class UserGroup(BaseModel):
+    name: str
 
 
 class PostRoles(BaseModel):
@@ -67,7 +72,20 @@ async def create_user(body: PostUsers):
     """
     Create a user
     """
-    await ttm.User.create(username=body.username, is_admin=body.is_admin)
+    user_group = None
+    if body.user_group:
+        user_group = await ttm.UserGroup.get(name=body.user_group)
+    await ttm.User.create(
+        username=body.username, is_admin=body.is_admin, user_group=user_group
+    )
+
+
+@router.post("/users/group")
+async def create_user(body: UserGroup):
+    """
+    Create a group
+    """
+    await ttm.UserGroup.create(name=body.name)
 
 
 @router.get("/users/{username}", response_model=User)
