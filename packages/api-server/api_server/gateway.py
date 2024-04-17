@@ -19,6 +19,7 @@ from rmf_dispenser_msgs.msg import DispenserState as RmfDispenserState
 from rmf_door_msgs.msg import DoorMode as RmfDoorMode
 from rmf_door_msgs.msg import DoorRequest as RmfDoorRequest
 from rmf_door_msgs.msg import DoorState as RmfDoorState
+from rmf_fleet_msgs.msg import BeaconState, ModeRequest, RobotMode
 from rmf_ingestor_msgs.msg import IngestorState as RmfIngestorState
 from rmf_lift_msgs.msg import LiftRequest as RmfLiftRequest
 from rmf_lift_msgs.msg import LiftState as RmfLiftState
@@ -29,7 +30,7 @@ from rosidl_runtime_py.convert import message_to_ordereddict
 from .logger import logger as base_logger
 from .models import BuildingMap, DispenserState, DoorState, IngestorState, LiftState
 from .repositories import CachedFilesRepository, cached_files_repo
-from .rmf_io import rmf_events
+from .rmf_io import rmf_events, sensor_events
 from .ros import ros_node
 
 
@@ -71,8 +72,15 @@ class RmfGateway:
         self._lift_req = ros_node().create_publisher(
             RmfLiftRequest, "adapter_lift_requests", 10
         )
+        self._mode_req = ros_node().create_publisher(
+            ModeRequest, "action_execution_notice", 1
+        )
+
         self._submit_task_srv = ros_node().create_client(RmfSubmitTask, "submit_task")
         self._cancel_task_srv = ros_node().create_client(RmfCancelTask, "cancel_task")
+
+        # bed exit service
+        # self._bed_exit_service = ros_node().create_service()
 
         self.cached_files = cached_files
         self.logger = logger or base_logger.getChild(self.__class__.__name__)
@@ -146,6 +154,18 @@ class RmfGateway:
         )
         self._subscriptions.append(map_sub)
 
+        def convert_sensor_state(beacon_state: BeaconState):
+            dic = message_to_ordereddict(beacon_state)
+            return BeaconState(**dic)
+
+        sensor_sub = ros_node().create_subscription(
+            BeaconState,
+            "sensor_state",
+            lambda msg: sensor_events.sensors.on_next(convert_sensor_state(msg)),
+            10,
+        )
+        self._subscriptions.append(sensor_sub)
+
     @staticmethod
     def now() -> Optional[RosTime]:
         """
@@ -177,8 +197,20 @@ class RmfGateway:
         )
         self._lift_req.publish(msg)
 
+    def request_mode(
+        self, fleet_name: str, robot_name: str, mode: int, task_id: str = ""
+    ):
+        msg = ModeRequest(
+            fleet_name=fleet_name,
+            robot_name=robot_name,
+            mode=RobotMode(mode=mode),
+            task_id=task_id,
+        )
+        self._mode_req.publish(msg)
 
-_rmf_gateway: RmfGateway
+
+# _rmf_gateway: RmfGateway
+_rmf_gateway: Optional[RmfGateway] = None
 
 
 def rmf_gateway() -> RmfGateway:

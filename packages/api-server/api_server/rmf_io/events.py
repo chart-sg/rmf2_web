@@ -54,3 +54,11 @@ class BeaconEvents:
 
 
 beacon_events = BeaconEvents()
+
+
+class SensorEvents:
+    def __init__(self):
+        self.sensors = Subject[PydanticModel]()
+
+
+sensor_events = SensorEvents()
