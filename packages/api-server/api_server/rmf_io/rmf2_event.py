@@ -8,7 +8,7 @@ from reactivex.abc import DisposableBase
 from reactivex.subject import Subject
 
 from api_server.logger import logger
-from api_server.workflows import TestFlow
+from api_server.workflows import BedExitFlow
 
 from .events import SensorEvents
 
@@ -49,7 +49,7 @@ class EventManager:
         service_data = Service()
         bed_exit = Events(
             name="bed_exit",
-            service=TestFlow(service_data),
+            service=BedExitFlow(service_data),
             stream=self.sensor.sensors,
             loop=self._loop,
         )
