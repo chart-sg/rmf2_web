@@ -122,14 +122,14 @@ class RmfBookKeeper:
         elif health.health_status == HealthStatus.DEAD:
             logger.error(message)
         else:
-            logger.info(message)
+            logger.debug(message)
 
     def _record_building_map(self):
         async def update(building_map: BuildingMap | None):
             if not building_map:
                 return
             await building_map.save()
-            self._loggers.building_map.info(json.dumps(building_map.dict()))
+            self._loggers.building_map.debug(json.dumps(building_map.dict()))
 
         self._subscriptions.append(
             self.rmf.building_map.subscribe(lambda x: self._create_task(update(x)))
@@ -138,7 +138,7 @@ class RmfBookKeeper:
     def _record_door_state(self):
         async def update(door_state: DoorState):
             await door_state.save()
-            self._loggers.door_state.info(json.dumps(door_state.dict()))
+            self._loggers.door_state.debug(json.dumps(door_state.dict()))
 
         self._subscriptions.append(
             self.rmf.door_states.subscribe(lambda x: self._create_task(update(x)))
@@ -158,7 +158,7 @@ class RmfBookKeeper:
     def _record_lift_state(self):
         async def update(lift_state: LiftState):
             await lift_state.save()
-            self._loggers.lift_state.info(lift_state.json())
+            self._loggers.lift_state.debug(lift_state.json())
 
         self._subscriptions.append(
             self.rmf.lift_states.subscribe(lambda x: self._create_task(update(x)))
@@ -178,7 +178,7 @@ class RmfBookKeeper:
     def _record_dispenser_state(self):
         async def update(dispenser_state: DispenserState):
             await dispenser_state.save()
-            self._loggers.dispenser_state.info(dispenser_state.json())
+            self._loggers.dispenser_state.debug(dispenser_state.json())
 
         self._subscriptions.append(
             self.rmf.dispenser_states.subscribe(lambda x: self._create_task(update(x)))
@@ -198,7 +198,7 @@ class RmfBookKeeper:
     def _record_ingestor_state(self):
         async def update(ingestor_state: IngestorState):
             await ingestor_state.save()
-            self._loggers.ingestor_state.info(ingestor_state.json())
+            self._loggers.ingestor_state.debug(ingestor_state.json())
 
         self._subscriptions.append(
             self.rmf.ingestor_states.subscribe(lambda x: self._create_task(update(x)))
