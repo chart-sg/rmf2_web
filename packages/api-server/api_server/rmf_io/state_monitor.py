@@ -44,6 +44,7 @@ class StateMonitor:
             "alert_state": {str: PydanticModel},
             "sensor_state": {str: PydanticModel},
         }
+        self.comfort_slot = set()
 
     async def start(self):
         self.rmf.door_states.subscribe(lambda x: self.listener(x, "door_state"))
@@ -78,7 +79,12 @@ class StateMonitor:
             self.logger.warn(f"ALERT: {data}")
             # self.states[attrib_name][data.alert_id] = data
         elif attrib_name == "sensor_state":
-            self.logger.warn(f"sensor event: {data}")
+            # self.logger.warn(f"sensor event: {data}")
+            if data.classification == "wheelchair":
+                self.logger.warn(f"sensor event is wheelchair type")
+                comforts = [zone for zone in data.zones if zone.startswith("comfort_")]
+                self.logger.warn(f"comfort list is {self.parking}")
+                self.parking.update(comforts)
         else:
             self.states[attrib_name] = data
 
@@ -88,14 +94,23 @@ class StateMonitor:
             return self.states["task_state"][id]
         return None
 
+    def update_comfort_slots(self, updated_slot):
+        self.comfort_slot = updated_slot
+
+    def get_comfort_slots(self):
+        return self.comfort_slot
+
     def get_task_action_status(
         self, task_data: TaskState, action: str, place: str = ""
     ):
-
+        # self.logger.warn(f"TASK STATUS: {task_data}")
         for phase in task_data.phases.values():
             for event in phase.events.values():
                 if place:
-                    if event.name == f"{action} [place:{place}]":
+                    # if event.name == f"{action} [place:{place}]":
+                    if f"{action} [place:{place}" in event.name:
+                        if f"{action} [place:{place}_entry]" in event.name:
+                            continue
                         return event.status.value
                 else:
                     if event.name == action:
@@ -104,13 +119,17 @@ class StateMonitor:
 
     def get_ack_status(self, alert_data: PydanticModel):
 
-        self.logger.warn(f"ALERT ACKAAAA: {alert_data.acknowledged_by}")
-        if alert_data.acknowledged_by:
-            return True
-        else:
-            return False
+        # self.logger.warn(f"ALERT ACKAAAA: {alert_data.acknowledged_by}")
 
-    # if there is a change in the state mode that we depend on, then we should trigger a check
+        # user has perform an action on alert
+        if alert_data.user_action:
+            return alert_data.user_action
+
+        # if alert has no message action but require acknowldgement
+        if alert_data.acknowledged_by:
+            return "acknowledge"
+        else:
+            return ""
 
     def pos_checker(self, pos1, pos2, threshold=1.0):
         distance = ((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2) ** 0.5

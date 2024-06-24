@@ -3,9 +3,10 @@ set -e
 shopt -s globstar
 
 RMF_BUILDING_MAP_MSGS_VER=c5e0352e2dfd3d11e4d292a1c2901cad867c1441
-RMF_INTERNAL_MSGS_VER=0c237e1758872917661879975d7dc0acf5fa518c
+RMF_INTERNAL_MSGS_VER=38156271cbe3959a2ce6cc75526fcfd019b5d9ac
 RMF_API_MSGS_VER=91295892192d24ec73c9a1c6fa54334963586784
 RMF_ROS2_VER=bf038461b5b0fb7d4594461a724bc9e5e7cb97c6
+# RMF_ACTIONS_VER=a4e8f35a7df2eb4e49214a7b22fd067c95e9863b
 CODEGEN_VER=$(pipenv run datamodel-codegen --version)
 
 cd "$(dirname $0)"
@@ -29,9 +30,10 @@ function fetch_sources {
 }
 
 fetch_sources https://github.com/open-rmf/rmf_building_map_msgs.git $RMF_BUILDING_MAP_MSGS_VER build/colcon_ws/src/rmf_building_map_msgs
-fetch_sources https://github.com/open-rmf/rmf_internal_msgs.git $RMF_INTERNAL_MSGS_VER build/colcon_ws/src/rmf_internal_msgs
+fetch_sources https://github.com/chart-sg/rmf2_internal_msgs.git $RMF_INTERNAL_MSGS_VER build/colcon_ws/src/rmf_internal_msgs
 fetch_sources https://github.com/open-rmf/rmf_api_msgs.git $RMF_API_MSGS_VER build/rmf_api_msgs
 fetch_sources https://github.com/open-rmf/rmf_ros2.git $RMF_ROS2_VER build/rmf_ros2
+# fetch_sources https://github.com/chart-sg/rmf2_actions.git $RMF_ROS2_VER build/colcon_ws/src/rmf_actions
 
 # build and source colcon workspace
 pushd "build/colcon_ws"
@@ -49,6 +51,8 @@ rmf_msgs=(
   'rmf_ingestor_msgs'
   'rmf_fleet_msgs'
   'rmf_task_msgs'
+  'rmf2_sensor_msgs'
+  # 'rmf_object_query_action'
 )
 rm -rf api_server/models/ros_pydantic
 pipenv run ros_translator -t=pydantic -o=api_server/models/ros_pydantic "${rmf_msgs[@]}"
@@ -96,6 +100,7 @@ echo "  rmf_internal_msgs: $RMF_INTERNAL_MSGS_VER"
 echo "  rmf_building_map_msgs: $RMF_BUILDING_MAP_MSGS_VER"
 echo "  rmf_api_msgs: $RMF_API_MSGS_VER"
 echo "  rmf_ros2: $RMF_ROS2_VER"
+# echo "  RMF_ACTIONS_VER: $RMF_ACTIONS_VER"
 echo "  datamodel-code-generator: ${CODEGEN_VER}"
 echo ''
 echo 'Successfully generated ros_pydantic models'

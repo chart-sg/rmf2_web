@@ -1,5 +1,6 @@
 import asyncio
 import json
+import uuid
 from asyncio import Future
 from typing import Callable, Dict, Optional
 from uuid import uuid4
@@ -15,14 +16,7 @@ from tortoise.contrib.pydantic.base import PydanticModel
 
 from api_server import models as mdl
 from api_server.logger import logger
-from api_server.models import (
-    DispenserState,
-    DoorState,
-    FleetState,
-    IngestorState,
-    LiftState,
-    TaskState,
-)
+from api_server.models import FleetState, TaskState
 
 # from api_server.repositories import AlertRepository, TaskRepository
 from api_server.repositories import alert_repo_dep
@@ -30,6 +24,7 @@ from api_server.rmf_io import alert_events, fleet_events, task_events
 from api_server.rmf_io.rmf_service import tasks_service
 from api_server.rmf_io.state_monitor import stateMonitor
 from api_server.ros import ros_node as default_ros_node
+from api_server.util.rmf_task_builder import rmfTaskBuilder
 
 user: mdl.User = mdl.User(username="__rmf_internal__", is_admin=True)
 alert_repo = alert_repo_dep(user)
@@ -128,50 +123,56 @@ class SequenceNotification(ServiceSequence):
         logger.warn(f"inside alert handler: {alert.original_id}")
 
         if alert.original_id == alert_id:
-            ack = self.sm.get_ack_status(alert)
-            logger.warn(f"ACK: {ack}")
-            if ack:
+            action = self.sm.get_ack_status(alert)
+            logger.warn(f"user action : {action}")
+
+            if action in ["acknowledge", "accept"]:
                 await self.onComplete()
+            elif action in ["reject", "cancel"]:
+                await self.onFail()
             else:
-                pass  # still waiting to be acknowledge
-        else:
-            pass  # receive alert but for another alert task
+                pass  # alert is waiting for action
 
     async def start(self, start_data=None):
         if "task_id" in start_data and start_data["task_id"]:
             task_id = start_data["task_id"]
-
-            alert_new = await alert_repo.create_alert(
-                alert_id=task_id,
-                category="default",
-                user_group=self.user_group,
-                message=self.message,
-                message_action=self.message_action,
-            )
-
-            if alert_new is not None:
-                alert_events.alerts.on_next(alert_new)
-
-            if self.need_ack:
-                self.subscription = self.sm.alert.alerts.subscribe(
-                    lambda alert: asyncio.create_task(
-                        self.handle_alert_update(alert, task_id)
-                    )
-                )
-                logger.info(
-                    f"lets wait for this {self.name} notification to be acknowledged"
-                )
-
-                await self.complete_event.wait()
-                self.subscription.dispose()
-
-            logger.info(f"Yaaaay! this {self.name} notification is completed!!")
-
         else:
-            await asyncio.sleep(2)
-            logger.info(
-                f"Alert is not a robotic task id [{self.user_id}]: {self.message}"
+            task_id = str(uuid.uuid4())
+
+        task_id = f"{self.name}-{task_id}"
+
+        alert_new = await alert_repo.create_alert(
+            alert_id=task_id,
+            category="default",
+            user_group=self.user_group,
+            message=self.message,
+            message_action=self.message_action,
+        )
+
+        if alert_new is not None:
+            alert_events.alerts.on_next(alert_new)
+
+        # if self.need_ack or self.message_action:
+
+        # only if notif needs ack then we wait
+        if self.need_ack:
+            self.subscription = self.sm.alert.alerts.subscribe(
+                lambda alert: asyncio.create_task(
+                    self.handle_alert_update(alert, task_id)
+                )
             )
+            logger.info(f"lets wait for this {self.name} user action")
+
+            await self.complete_event.wait()
+            self.subscription.dispose()
+
+        logger.info(f"Yaaaay! this {self.name} notification is completed!!")
+
+        # else:
+        #     # await asyncio.sleep(2)
+        #     logger.info(
+        #         f"Alert is not a robotic task id [{self.user_id}]: {self.message}"
+        #     )
 
 
 class SequenceCustom(ServiceSequence):
@@ -201,62 +202,6 @@ class SequenceRoboticTask(ServiceSequence):
         self.rmf_task_id: str
         self.task_id = ""
         self.data = data
-
-    def rmfTaskBuilder(
-        self, robot: str, fleet: str, category: str, start: str, startTime: int = 0
-    ):
-        # msg = ApiRequest()
-        # msg.request_id = "teleop_" + str(uuid.uuid4())
-        payload = {}
-        if fleet and robot:
-            payload["type"] = "robot_task_request"
-            payload["robot"] = robot
-            payload["fleet"] = fleet
-        else:
-            payload["type"] = "dispatch_task_request"
-
-        request = {}
-
-        # Set task request start time
-        now = default_ros_node().get_clock().now().to_msg()
-        now.sec = now.sec + startTime
-        start_time = now.sec * 1000 + round(now.nanosec / 10**6)
-        request["unix_millis_earliest_start_time"] = start_time
-
-        # Define task request category
-        request["category"] = "compose"
-
-        # Define task request description with phases
-        description = {}  # task_description_Compose.json
-        description["category"] = category
-        description["phases"] = []
-
-        # Add activities
-        activities = []
-        activities.append({"category": "go_to_place", "description": start})
-        activities.append(
-            {
-                "category": "perform_action",
-                "description": {
-                    "unix_millis_action_duration_estimate": 60000,
-                    "category": "teleop",
-                    "description": {},
-                },
-            }
-        )
-        # Add activities to phases
-        description["phases"].append(
-            {
-                "activity": {
-                    "category": "sequence",
-                    "description": {"activities": activities},
-                }
-            }
-        )
-        request["description"] = description
-        payload["request"] = request
-
-        return json.dumps(payload)
 
     async def handle_task_update(
         self, task: TaskState, task_id: str, action: str, place: str
@@ -310,18 +255,22 @@ class SequenceRoboticTask(ServiceSequence):
         fleet = self.data["fleet"]
         category = self.data["category"]
         place = self.data["start"]
+        zoneType = self.data.get("zoneType", None)
         start = ""
 
-        # if place is NOT string, call it
+        # if place is a function, call it
         if callable(place):
             start = place()
         else:
             start = place
 
         # payload = self.rmfTaskBuilder(**self.data)
-        payload = self.rmfTaskBuilder(
-            robot=robot, fleet=fleet, category=category, start=start
+        payload = rmfTaskBuilder(
+            robot=robot, fleet=fleet, category=category, start=start, zoneType=zoneType
         )
+
+        logger.info(f"RESPONSE: {payload}")
+
         resp = mdl.TaskDispatchResponse.parse_raw(await tasks_service().call(payload))
 
         # cancel workflow if request failed
@@ -396,41 +345,4 @@ class Rmf2Service:
 
 
 if __name__ == "__main__":
-    # Create task services
-    aw_data = {
-        "category": "teleop",
-        "start": "ff_zone_c",
-        "robot": "aw",
-        "fleet": "tinyRobot",
-    }
-
-    send_aw_task = SequenceRoboticTask(name="send_aw_ff", data=aw_data)
-    notify_aw_ed = SequenceNotification(
-        name="notify_ed",
-        userId="ed_01",
-        userGroup="ed_staff",
-        message="AW has reached ED STK",
-        need_ack=True,
-    )
-    send_aw_task.next_task = notify_aw_ed
-
-    # send_aw_home= SequenceRoboticTask(name='send_aw_home', data=aw_data)
-
-    # Send another robot after AW reach
-    pudu_data = {
-        "category": "teleop",
-        "start": "pantry",
-        "robot": "pudu",
-        "fleet": "tinyRobot",
-    }
-    send_pudu_task = SequenceRoboticTask(name="send_pudu", data=pudu_data)
-    notify_aw_ed.next_task = send_pudu_task
-
-    # Create a service
-    test_service = Rmf2Service(name="send_aw")
-
-    try:
-        asyncio.create_task(test_service.add_sequences_and_start(send_aw_task))
-
-    except RobotDispatchFailed as e:
-        logger.error(f"admit to ff workflow failed: {e}")
+    pass

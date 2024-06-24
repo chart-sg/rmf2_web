@@ -21,6 +21,13 @@ class AppConfig:
     aud: str
     iss: Optional[str]
     ros_args: List[str]
+    demo_env: str
+    environments: dict
+    delays: dict
+    event: dict
+    temi: dict
+    delays: dict
+    aw: dict
 
     def __post_init__(self):
         self.public_url = urllib.parse.urlparse(cast(str, self.public_url))

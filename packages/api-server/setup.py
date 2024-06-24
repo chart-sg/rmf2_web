@@ -27,6 +27,8 @@ setup(
         "pyjwt[crypto]~=2.4",
         "pydantic~=1.9",
         "schedule~=1.1.0",
+        "paho-mqtt~=1.5.1",
+        "aiohttp~=3.8.1",
     ],
     extras_require={
         "postgres": ["asyncpg~=0.25.0"],

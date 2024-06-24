@@ -4,6 +4,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+from time import sleep
 from typing import Any, List, Optional
 
 import rclpy
@@ -11,6 +12,7 @@ import rclpy.client
 import rclpy.qos
 from builtin_interfaces.msg import Time as RosTime
 from fastapi import HTTPException
+from rclpy.action import ActionClient
 from rclpy.subscription import Subscription
 from rmf_building_map_msgs.msg import AffineImage as RmfAffineImage
 from rmf_building_map_msgs.msg import BuildingMap as RmfBuildingMap
@@ -19,19 +21,35 @@ from rmf_dispenser_msgs.msg import DispenserState as RmfDispenserState
 from rmf_door_msgs.msg import DoorMode as RmfDoorMode
 from rmf_door_msgs.msg import DoorRequest as RmfDoorRequest
 from rmf_door_msgs.msg import DoorState as RmfDoorState
-from rmf_fleet_msgs.msg import BeaconState, ModeRequest, RobotMode
+
+# from rmf_fleet_msgs.msg import BeaconState, ModeRequest, RobotMode
+from rmf_fleet_msgs.msg import ModeRequest, RobotMode
 from rmf_ingestor_msgs.msg import IngestorState as RmfIngestorState
 from rmf_lift_msgs.msg import LiftRequest as RmfLiftRequest
 from rmf_lift_msgs.msg import LiftState as RmfLiftState
+from rmf_sensor_actions.action import ObjectQuery
 from rmf_task_msgs.srv import CancelTask as RmfCancelTask
 from rmf_task_msgs.srv import SubmitTask as RmfSubmitTask
 from rosidl_runtime_py.convert import message_to_ordereddict
 
+from api_server.app_config import app_config
+from api_server.rmf_io.state_monitor import stateMonitor
+
 from .logger import logger as base_logger
-from .models import BuildingMap, DispenserState, DoorState, IngestorState, LiftState
+from .models import (
+    BuildingMap,
+    DispenserState,
+    DoorState,
+    IngestorState,
+    LiftState,
+    ObjectZone,
+)
 from .repositories import CachedFilesRepository, cached_files_repo
 from .rmf_io import rmf_events, sensor_events
 from .ros import ros_node
+
+# from .ros_pydantic import rmf2_sensor_msgs
+# from action_tutorials_interfaces.action import Fibonacci
 
 
 def process_building_map(
@@ -79,14 +97,135 @@ class RmfGateway:
         self._submit_task_srv = ros_node().create_client(RmfSubmitTask, "submit_task")
         self._cancel_task_srv = ros_node().create_client(RmfCancelTask, "cancel_task")
 
-        # bed exit service
-        # self._bed_exit_service = ros_node().create_service()
+        # obj query action client
+        self._obj_query_client = ActionClient(
+            ros_node(), ObjectQuery, "request_object_query"
+        )
+
+        # kick start events!
+        # if app_config.event['bed_exit']:
+        #     asyncio.create_task(self.send_goal("bed_exit"))
+        # if app_config.event['milk_run']:
+        #     asyncio.create_task(self.goal_loop())
 
         self.cached_files = cached_files
         self.logger = logger or base_logger.getChild(self.__class__.__name__)
         self._subscriptions: List[Subscription] = []
+        self.msg_hash_set = set()
+        self.comfort_list = set()
+        self.goal_loop_flag = True
+        self.bed_exit_goal_handle = None
+        self.bed_exit_goal = None
+        # self.comfort_trigger = False
+        # self.trigger_time = None
 
         self._subscribe_all()
+
+    def obj_feedback_callback(self, feedback_msg):
+        feedback_hash = hashlib.sha256(str(feedback_msg).encode()).hexdigest()
+        # check if we received this feedback_msg before
+        if feedback_hash in self.msg_hash_set:
+            self.logger.info("Duplicated obj detected and skipped")
+            return
+        # add the hash of feedback_msg to set
+        self.msg_hash_set.add(feedback_hash)
+
+        feedback = feedback_msg.feedback
+        object_dict = message_to_ordereddict(feedback.object)
+        objectZone = ObjectZone(zones=feedback.zones, **object_dict)
+        # self.logger.info(f'classification!!!: {objectZone.classification}')
+
+        if objectZone.classification == "wheelchair":
+            # self.logger.info(f'object received!!!: {objectZone}')
+            comforts = [zone for zone in feedback.zones if zone.startswith("comfort_")]
+            self.comfort_list.update(comforts)
+            # sensor_events.sensors.on_next(objectZone)
+
+        else:
+            sensor_events.sensors.on_next(objectZone)
+
+    async def set_goal_loop(self, mode):
+        self.goal_loop_flag = mode
+        if mode:
+            asyncio.create_task(self.goal_loop())
+
+    async def goal_loop(self):
+        while self.goal_loop_flag:
+            result = await self.send_goal("zone")
+            await asyncio.sleep(5)
+        stateMonitor().update_comfort_slots(set())
+
+    async def set_bed_exit(self, mode):
+        if mode:
+            # self.logger.info(f'CREATING BED EXIT GOAL')
+            # self.bed_exit_goal = asyncio.create_task(self.send_goal("bed_exit"))
+            pass
+        else:
+            self.logger.info(f"STOPPING BED EXIT GOAL")
+            pass
+            # if self.bed_exit_goal:
+            #     self.bed_exit_goal.cancel()
+            #     self.bed_exit_goal = None
+
+    async def send_goal(self, goal_type: str):
+        # self.logger.info(f'ObjectQuery: sending {goal_type} goal')
+        goal_msg = ObjectQuery.Goal()
+
+        if goal_type == "bed_exit":
+            goal_msg.type = 2
+            goal_msg.type_vector = ["bed_exit"]
+            goal_msg.run_type = 0
+            goal_msg.run_value = 0
+        elif goal_type == "zone":
+            # need to clear the comfort_array
+            self.comfort_list.clear()
+
+            goal_msg.type = 2
+            goal_msg.type_vector = ["wheelchair"]
+            goal_msg.run_type = 0
+            goal_msg.run_value = 1
+        else:
+            raise Exception(f"Invalid goal {goal_type}")
+
+        # try:
+        self._obj_query_client.wait_for_server()
+
+        goal_handle = await self._obj_query_client.send_goal_async(
+            goal=goal_msg, feedback_callback=self.obj_feedback_callback
+        )
+        await asyncio.sleep(1)
+
+        if goal_type == "bed_exit":
+            self.bed_exit_goal_handle = goal_handle
+
+        if goal_type == "zone":
+            result = await goal_handle.get_result_async()
+
+        stateMonitor().update_comfort_slots(self.comfort_list)
+
+        # except asyncio.CancelledError:
+        #     # handle the cancellation here
+        #     self.logger.info(f'{goal_type} goal cancelled')
+        #     if goal_type == "bed_exit" and self.bed_exit_goal_handle is not None:
+        #         await self.bed_exit_goal_handle.cancel_goal_async()
+        #         self.bed_exit_goal_handle = None
+        #     return
+
+        return self.comfort_list
+
+    # async def send_goal_obj(self, client: rclpy.action.ActionClient, goal, timeout=1) -> Any:
+    async def send_goal_obj(self, goal, fb, timeout=1) -> Any:
+        """
+        Utility to wrap a ros action goal in an awaitable,
+        raises Exception if the goal process fails.
+        """
+        # fut = client.send_goal_async(goal=goal, feedback_callback=self.obj_feedback_callback)
+        fut = self._obj_query_client.send_goal_async(goal=goal, feedback_callback=fb)
+        try:
+            res = await asyncio.wait_for(fut, timeout=timeout)
+            return res
+        except asyncio.TimeoutError as e:
+            raise Exception("ROS action goal processing timed out") from e
 
     async def call_service(self, client: rclpy.client.Client, req, timeout=1) -> Any:
         """
@@ -154,17 +293,17 @@ class RmfGateway:
         )
         self._subscriptions.append(map_sub)
 
-        def convert_sensor_state(beacon_state: BeaconState):
-            dic = message_to_ordereddict(beacon_state)
-            return BeaconState(**dic)
+        # def convert_sensor_state(beacon_state: BeaconState):
+        #     dic = message_to_ordereddict(beacon_state)
+        #     return BeaconState(**dic)
 
-        sensor_sub = ros_node().create_subscription(
-            BeaconState,
-            "sensor_state",
-            lambda msg: sensor_events.sensors.on_next(convert_sensor_state(msg)),
-            10,
-        )
-        self._subscriptions.append(sensor_sub)
+        # sensor_sub = ros_node().create_subscription(
+        #     BeaconState,
+        #     "sensor_state",
+        #     lambda msg: sensor_events.sensors.on_next(convert_sensor_state(msg)),
+        #     10,
+        # )
+        # self._subscriptions.append(sensor_sub)
 
     @staticmethod
     def now() -> Optional[RosTime]:
@@ -224,4 +363,6 @@ def startup():
     """
     global _rmf_gateway
     _rmf_gateway = RmfGateway(cached_files_repo)
+
+    # _rmf_gateway.send_goal()
     return _rmf_gateway
