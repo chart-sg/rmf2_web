@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List
 
 from fastapi import Depends, HTTPException
@@ -31,7 +32,11 @@ async def get_alert(alert_id: str, repo: AlertRepository = Depends(alert_repo_de
 
 
 class AlertPayload(BaseModel):
-    message: str = None
+    alert_type: str = None
+    service_id: str = None
+    robot_id: str = None
+    user_group: str = None
+    other: str = None
     message_action: str = None
 
 
@@ -39,23 +44,57 @@ class AlertPayload(BaseModel):
 async def create_alert(
     alert_id: str,
     category: str,
-    user_group: str = None,
+    # user_group: str = None,
     body: AlertPayload = None,
     repo: AlertRepository = Depends(alert_repo_dep),
 ):
-    message = body.message if body and body.message else None
-    message_action = body.message_action if body and body.message_action else None
+    # message = body.message if body and body.message else None
+    # message_action = body.message_action if body and body.message_action else None
 
     alert = await repo.create_alert(
         alert_id=alert_id,
         category=category,
-        user_group=user_group,
-        message=message,
-        message_action=message_action,
+        alert_type=body.alert_type,
+        service_id=body.service_id,
+        robot_id=body.robot_id,
+        user_group=body.user_group,
+        other=body.other,
     )
 
     if alert is None:
         raise HTTPException(404, f"Could not create alert with ID {alert_id}")
+    return alert
+
+
+class ActionType(Enum):
+    accept = "accept"
+    reject = "reject"
+    ignore = "ignore"
+    acknowledge = "acknowledge"
+    snooze = "snooze"
+    unacknowledge = "unacknowledge"
+
+
+class AlertAction(BaseModel):
+    alert_id: str
+    action: ActionType
+
+
+@router.put("", status_code=201, response_model=ttm.AlertPydantic)
+async def update_alert(
+    body: AlertAction,
+    repo: AlertRepository = Depends(alert_repo_dep),
+):
+    # message = body.message if body and body.message else None
+    # message_action = body.message_action if body and body.message_action else None
+
+    alert = await repo.acknowledge_alert(
+        alert_id=body.alert_id, user_action=body.action.value
+    )
+
+    if alert is None:
+        raise HTTPException(404, f"Could not update alert with ID {body.alert_id}")
+    alert_events.alerts.on_next(alert)
     return alert
 
 

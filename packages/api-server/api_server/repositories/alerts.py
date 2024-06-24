@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from typing import List, Optional
 
@@ -37,15 +38,21 @@ class AlertRepository:
         self,
         alert_id: str,
         category: str,
+        alert_type: str = None,
+        service_id: str = None,
+        robot_id: str = None,
         user_group: str = None,
-        message: str = None,
+        location: str = None,
+        patient_id: str = None,
+        other: str = None,
         message_action: str = None,
+        user_action: str = None,
     ) -> Optional[ttm.AlertPydantic]:
 
         # get user_group from db via id
-        user_group_instance = None
-        if user_group:
-            user_group_instance = await ttm.UserGroup.get(name=user_group)
+        # user_group_instance = None
+        # if user_group:
+        #     user_group_instance = await ttm.UserGroup.get(name=user_group)
 
         alert, _ = await ttm.Alert.update_or_create(
             {
@@ -54,10 +61,16 @@ class AlertRepository:
                 "unix_millis_created_time": round(datetime.now().timestamp() * 1e3),
                 "acknowledged_by": None,
                 "unix_millis_acknowledged_time": None,
-                "message": message,
-                "user_group": user_group_instance,
+                "alert_type": alert_type,
+                "service_id": service_id,
+                "robot_id": robot_id,
+                "location": location,
+                "patient_id": patient_id,
+                "other": other,
+                "user_group": user_group,
+                # "user_group": user_group_instance,
                 "message_action": message_action,
-                "user_action": None,
+                "user_action": user_action,
             },
             id=alert_id,
         )
@@ -67,7 +80,47 @@ class AlertRepository:
         alert_pydantic = await ttm.AlertPydantic.from_tortoise_orm(alert)
         return alert_pydantic
 
-    async def acknowledge_alert(self, alert_id: str) -> Optional[ttm.AlertPydantic]:
+    async def reset_user_action(self, alert):
+
+        await asyncio.sleep(30)
+        logger.error(f"Complete snooze")
+        alert.update_from_dict({"user_action": ""})
+        await alert.save()
+
+    async def snooze_alert(self, alert_id: str) -> Optional[ttm.AlertPydantic]:
+
+        logger.error(f"Snoozing Alert with ID {alert_id}")
+        alert = await ttm.Alert.get_or_none(id=alert_id)
+        if alert is None:
+            acknowledged_alert = await ttm.Alert.filter(original_id=alert_id).first()
+            if acknowledged_alert is None:
+                logger.error(f"No existing or past alert with ID {alert_id} found.")
+                return None
+            acknowledged_alert_pydantic = await ttm.AlertPydantic.from_tortoise_orm(
+                acknowledged_alert
+            )
+            return acknowledged_alert_pydantic
+
+        # Set user_action to 'snooze'
+        alert.update_from_dict({"user_action": "snooze"})
+        logger.error(f"Updating action to snooze for Alert with ID {alert_id}")
+        await alert.save()
+
+        # Reset user_action to '' after 30 seconds in separate thread
+        asyncio.ensure_future(self.reset_user_action(alert))
+
+        # Refetch the alert to ensure all fields are included.
+        alert = await ttm.Alert.get(id=alert_id)
+
+        alert_pydantic = await ttm.AlertPydantic.from_tortoise_orm(alert)
+        return alert_pydantic
+
+    async def acknowledge_alert(
+        self, alert_id: str, user_action: str = None
+    ) -> Optional[ttm.AlertPydantic]:
+        if user_action == "snooze":
+            return await self.snooze_alert(alert_id)
+
         alert = await ttm.Alert.get_or_none(id=alert_id)
         if alert is None:
             acknowledged_alert = await ttm.Alert.filter(original_id=alert_id).first()
@@ -97,6 +150,10 @@ class AlertRepository:
                 "unix_millis_acknowledged_time": unix_millis_acknowledged_time,
             }
         )
+
+        if user_action:
+            ack_alert.update_from_dict({"user_action": user_action})
+
         await ack_alert.save()
 
         # Save in logs who was the user that acknowledged the task

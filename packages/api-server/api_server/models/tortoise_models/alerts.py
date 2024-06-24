@@ -22,10 +22,16 @@ class Alert(Model):
     unix_millis_created_time = BigIntField(null=False, index=True)
     acknowledged_by = CharField(255, null=True, index=True)
     unix_millis_acknowledged_time = BigIntField(null=True, index=True)
-    message = CharField(255, null=True, index=True)
-    user_group: ForeignKeyField = ForeignKeyField(
-        "models.UserGroup", related_name="alerts", null=True
-    )
+    alert_type = CharField(255, null=True, index=True)
+    service_id = CharField(255, null=True, index=True)
+    robot_id = CharField(255, null=True, index=True)
+    location = CharField(255, null=True, index=False)
+    patient_id = CharField(255, null=True, index=False)
+    user_group = CharField(255, null=True, index=True)
+    # user_group: ForeignKeyField = ForeignKeyField(
+    #     "models.UserGroup", related_name="alerts", null=True
+    # )
+    other = CharField(255, null=True, index=True)
     message_action = CharField(255, null=True, index=False)
     user_action = CharField(255, null=True, index=False)
 
