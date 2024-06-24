@@ -1,13 +1,14 @@
 import asyncio
 
+from api_server.app_config import app_config
 from api_server.logger import logger
-from api_server.rmf_io.rmf2_service import (
+from api_server.rmf_io.rmf2_service_sequence import (
     Rmf2Service,
     SequenceCustom,
     SequenceNotification,
     SequenceRoboticTask,
+    SequenceTemiTask,
 )
-from api_server.rmf_io.state_monitor import stateMonitor
 
 
 class RobotDispatchFailed(Exception):
@@ -17,68 +18,90 @@ class RobotDispatchFailed(Exception):
         super().__init__(self.message)
 
 
+class ZoneDirectionError(Exception):
+    """Custom exception raised when a required attribute is missing."""
+
+
 class BedExitFlow:
     def __init__(self, body):
-        self.service_id = body.service_id
+        # self.service_id = body.service_id
         self.robot_id = body.data.robot_id
         self.data = {}
 
-        # self.sm = stateMonitor()
+    async def start_workflow(self, data):
+        try:
+            # place = data["zone"]
 
-    async def start_workflow(self):
-        # Create task services
-        responder_data = {
-            "category": "teleop",
-            "start": "iso",
-            "robot": "temi",
-            "fleet": "tinyRobot",
-        }
+            place = "bed_left" if data["direction"] == "left" else "bed_right"
+            direction = data["direction"]
+            angle = -45 if data["direction"] == "left" else -135
+        except AttributeError:
+            raise ZoneDirectionError("Missing required attribute(s) zone and direction")
 
-        send_robot_responder_task = SequenceRoboticTask(
-            name="send_robot_responder", data=responder_data
-        )
-        send_not = SequenceNotification(
-            name="notify_ed",
-            userId="iso_01",
-            userGroup="iso_staff",
-            message="Bed Exit triggered at Bed X",
-            needAck=True,
-            messageAction="telepresence",
-        )
-        send_robot_responder_task.next_task = send_not
+        # configurable params
+        demo_env = app_config.demo_env
+        temi_robot = app_config.environments[demo_env]["temi_robot"]
+        temi_fleet = app_config.environments[demo_env]["temi_fleet"]
+        temi_charger = app_config.environments[demo_env]["temi_charger"]
+        temi_id = app_config.temi["temi_id"]
 
-        view_patient_task = SequenceCustom(name="view_patient")
-
-        # send_aw_home= SequenceRoboticTask(name='send_aw_home', data=aw_data)
-        # Send another robot after AW reach
-        responder_return_data = {
-            "category": "teleop",
-            "start": "temi_charger",
-            "robot": "temi",
-            "fleet": "tinyRobot",
-        }
-
-        return_robot_task = SequenceRoboticTask(
-            name="retun_robot_responder", data=responder_return_data
-        )
-
-        # TODO: if user choose telepresence, then perform next_task (view patient)
-        # ELSE perform fail_task (return temi)
-        send_not.next_task = view_patient_task
-        send_not.fail_task = return_robot_task
-
-        # return temi after video call ends
-        view_patient_task.next_task = return_robot_task
-
-        # Create a service
         bed_exit_service = Rmf2Service(name="bed_exit")
 
+        responder_data = {
+            "category": "go_to_place",
+            "start": place,
+            "robot": temi_robot,
+            "fleet": temi_fleet,
+            "zoneType": direction,
+            "zoneFacing": angle,
+        }
+
+        send_robot_responder = SequenceRoboticTask(
+            name="send_robot_responder",
+            serviceId=bed_exit_service.id,
+            data=responder_data,
+        )
+
+        temi_audio_data = {
+            "temi_id": temi_id,
+            "sequence_type": "pre_exit",
+        }
+
+        play_audio = SequenceTemiTask(name="play_audio", data=temi_audio_data)
+
+        bed_exit_alert = SequenceNotification(
+            name="bed_exit_alert",
+            serviceId=bed_exit_service.id,
+            robotId=temi_robot,
+            location=place,
+            userGroup="iso_nurse",
+            messageAction="telepresence",
+        )
+
+        temi_sequence_data = {
+            "temi_id": temi_id,
+            "sequence_type": "bed_exit",
+        }
+
+        play_sequence = SequenceTemiTask(name="play_sequence", data=temi_sequence_data)
+
+        temi_data = {"category": "teleop", "robot": temi_robot, "fleet": temi_fleet}
+        manual_control = SequenceRoboticTask(
+            name="send_temi", serviceId=bed_exit_service.id, data=temi_data
+        )
+
+        # bed_exit_service.tasks = [bed_exit_alert, [play_audio, send_robot_responder], play_sequence]
+        # bed_exit_service.tasks = [bed_exit_alert, send_robot_responder, play_sequence]
+        bed_exit_service.tasks = [bed_exit_alert]
+
         try:
-            # asyncio.create_task(send_aw_service.add_sequences_and_start(send_aw_task))
-            await bed_exit_service.add_sequences_and_start(send_robot_responder_task)
+            # await bed_exit_service.add_sequences_and_start(send_robot_responder)
+            asyncio.create_task(bed_exit_service.start())
 
         except RobotDispatchFailed as e:
             logger.error(f"bed exit workflow failed: {e}")
+
+        return bed_exit_service.id
 
 
 def main():
