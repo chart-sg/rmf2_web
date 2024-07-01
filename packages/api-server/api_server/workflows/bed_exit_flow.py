@@ -39,10 +39,10 @@ class BedExitFlow:
             raise ZoneDirectionError("Missing required attribute(s) zone and direction")
 
         # configurable params
-        demo_env = app_config.demo_env
-        temi_robot = app_config.environments[demo_env]["temi_robot"]
-        temi_fleet = app_config.environments[demo_env]["temi_fleet"]
-        temi_charger = app_config.environments[demo_env]["temi_charger"]
+        # demo_env = app_config.demo_env
+        temi_robot = app_config.environments["temi_robot"]
+        temi_fleet = app_config.environments["temi_fleet"]
+        temi_charger = app_config.environments["temi_charger"]
         temi_id = app_config.temi["temi_id"]
 
         bed_exit_service = Rmf2Service(name="bed_exit")

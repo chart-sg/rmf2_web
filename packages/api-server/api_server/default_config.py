@@ -10,7 +10,7 @@ config = {
     # url that rmf-server is being served on.
     # When being a proxy, this must be the url that rmf-server is mounted on.
     # E.g. https://example.com/rmf/api/v1
-    "public_url": "http://10.233.29.66:8000",
+    "public_url": "http://10.233.29.67:8000",
     # "public_url": "http://localhost:8000",
     "cache_directory": "run/cache",  # The directory where cached files should be stored.
     "log_level": "INFO",  # https://docs.python.org/3.8/library/logging.html#levels
@@ -33,67 +33,18 @@ config = {
     # list of arguments passed to the ros node, "--ros-args" is automatically prepended to the list.
     # e.g.
     #   Run with sim time: ["-p", "use_sim_time:=true"]
-    # "ros_args": [],
-    # "ros_args": ["-p", "use_sim_time:=true"],
-    "ros_args": ["-p", "use_sim_time:=false"],
+    "ros_args": [],
     # sim OR chart
-    "demo_env": "chart",
-    "environments": {
-        "sim": {
-            "pudu_robot": "pudubot2",
-            "pudu_fleet": "tinyRobot",
-            "pudu_charger": "pudu_charger",
-            "pudu_start": "pudu_charger",
-            "temi_robot": "bed_responder",
-            "temi_fleet": "tinyRobot",
-            "temi_charger": "temi_charger",
-            "aw_robot": "piimo_1",
-            "aw_fleet": "tinyRobot",
-            "aw_charger": "aw_charger",
-            "iso_bed": "bed_1",
-        },
-        "chart": {
-            "pudu_robot": "pudubot2",
-            "pudu_fleet": "pudubot2",
-            "pudu_charger": "standby",
-            # "pudu_charger": "blanki_charger",
-            "pudu_start": "blanki_start",
-            "temi_robot": "bed_responder",
-            "temi_fleet": "Temi",
-            "temi_charger": "temi_charger",
-            "aw_robot": "piimo_1",
-            "aw_fleet": "piimo",
-            "aw_charger": "piimo_charger",
-            "iso_bed": "bed_2",
-        },
-    },
+    "demo_env": "",
+    "environments": {},
     # event driven
-    "event": {"bed_exit": True, "milk_run": True, "mqtt": False},
+    "event": {},
     # temi configs
-    "temi": {
-        "temi_id": "00119140017",
-        "video_sequence": "666a69864780787af86c8e5c",
-        "bed_exit_sequence": "64a39c872e9477138cdd2e8e",
-    },
+    "temi": {},
     # aw configs
-    "aw": {
-        "moving_off_long": "foo.wav",
-        "moving_off_short": "foo.wav",
-        "host_url": "http://10.233.29.240:8113/",
-        "check_aw_exit": "http://10.233.29.65:3001/check-aw-exit",
-        # "check_aw_exit": "https://jsonplaceholder.typicode.com/posts",
-        "voice_endp": "64a39c872e9477138cdd2e8e",
-        "get_buckle_endp": "http://10.233.29.84:3001/check-aw-exit",
-        "play_voice_endp": "http://10.233.29.84:8113/play_voice?data=foo.wav",
-    },
+    "aw": {},
     # delay config
-    "delays": {
-        "milk_run": 5,
-        "delivery": 15,
-        "aw_end": 30,
-        "orientation_video": 60,
-        "responder_delay": 1,
-    }
+    "delays": {},
     # auth using openid keycloak
     # "jwt_public_key": "/home/asraf/rmf2_web/packages/api-server/api_server/rmf.pem",
     # "oidc_url": "https://keycloak.ctfportal.com/auth/realms/rmf-web/.well-known/openid-configuration",

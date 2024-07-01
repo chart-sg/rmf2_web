@@ -46,9 +46,9 @@ class SendAWFlow:
     async def start_workflow(self):
 
         # configurable params
-        demo_env = app_config.demo_env
-        aw_robot = app_config.environments[demo_env]["aw_robot"]
-        aw_fleet = app_config.environments[demo_env]["aw_fleet"]
+        # demo_env = app_config.demo_env
+        aw_robot = app_config.environments["aw_robot"]
+        aw_fleet = app_config.environments["aw_fleet"]
 
         # overwrite params
         # self.robot_id = aw_robot

@@ -38,11 +38,11 @@ class AdhocDeliveryFlow:
     async def start_workflow(self):
 
         # configurable params
-        demo_env = app_config.demo_env
-        pudu_robot = app_config.environments[demo_env]["pudu_robot"]
-        pudu_fleet = app_config.environments[demo_env]["pudu_fleet"]
-        pudu_charger = app_config.environments[demo_env]["pudu_charger"]
-        iso_bed = app_config.environments[demo_env]["iso_bed"]
+        # demo_env = app_config.demo_env
+        pudu_robot = app_config.environments["pudu_robot"]
+        pudu_fleet = app_config.environments["pudu_fleet"]
+        pudu_charger = app_config.environments["pudu_charger"]
+        iso_bed = app_config.environments["iso_bed"]
         delivery_delay = app_config.delays["delivery"]
 
         # overwrite params

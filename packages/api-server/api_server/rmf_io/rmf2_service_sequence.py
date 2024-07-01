@@ -352,10 +352,10 @@ class SequenceMilkRun(ServiceSequence):
 
         # step 0 - initialize an empty delivered zone list
         self.delivered_zones = set()
-        demo_env = app_config.demo_env
-        self.pudu_robot = app_config.environments[demo_env]["pudu_robot"]
-        self.pudu_fleet = app_config.environments[demo_env]["pudu_fleet"]
-        self.pudu_charger = app_config.environments[demo_env]["pudu_start"]
+        # demo_env = app_config.demo_env
+        self.pudu_robot = app_config.environments["pudu_robot"]
+        self.pudu_fleet = app_config.environments["pudu_fleet"]
+        self.pudu_charger = app_config.environments["pudu_start"]
         self.delay = app_config.delays["milk_run"]
         self.pudu_moved = False
 

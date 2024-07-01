@@ -29,9 +29,9 @@ class MilkRunFlow:
 
         # configurable params
         demo_env = app_config.demo_env
-        pudu_robot = app_config.environments[demo_env]["pudu_robot"]
-        pudu_fleet = app_config.environments[demo_env]["pudu_fleet"]
-        pudu_charger = app_config.environments[demo_env]["pudu_charger"]
+        pudu_robot = app_config.environments["pudu_robot"]
+        pudu_fleet = app_config.environments["pudu_fleet"]
+        pudu_charger = app_config.environments["pudu_charger"]
         delay = app_config.delays["delivery"]
 
         # Create a service

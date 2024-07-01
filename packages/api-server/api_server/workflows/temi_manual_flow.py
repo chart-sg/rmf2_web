@@ -36,11 +36,11 @@ class TemiManualFlow:
     async def start_workflow(self):
 
         # configurable params
-        demo_env = app_config.demo_env
-        temi_robot = app_config.environments[demo_env]["temi_robot"]
-        temi_fleet = app_config.environments[demo_env]["temi_fleet"]
-        iso_bed = app_config.environments[demo_env]["iso_bed"]
-        temi_charger = app_config.environments[demo_env]["temi_charger"]
+        # demo_env = app_config.demo_env
+        temi_robot = app_config.environments["temi_robot"]
+        temi_fleet = app_config.environments["temi_fleet"]
+        iso_bed = app_config.environments["iso_bed"]
+        temi_charger = app_config.environments["temi_charger"]
         temi_id = app_config.temi["temi_id"]
 
         temi_manual_service = Rmf2Service(name="patient_orient")
