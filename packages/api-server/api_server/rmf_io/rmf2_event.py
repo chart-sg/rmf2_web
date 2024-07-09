@@ -31,10 +31,23 @@ class Service:
 async def bed_exit_handler(data, service):
     if data.classification == "bed_exit":
         logger.warn(f"bed_exit event triggered")
-        logger.warn(f"ZONE: {data.zones[0]} , direction {data.direction}")
+
+        logger.warn(f"BED EXIT ENABLED?: {rmf_gateway().enable_bed_exit}")
+        if rmf_gateway().enable_bed_exit == False:
+            return
+
+        if "/" in data.direction:
+            direction, video = data.direction.split("/", maxsplit=1)
+        else:
+            direction = data.direction
+            video = ""
+
+        logger.warn(f"ZONE: {data.zones[0]} , direction: {direction}")
+        # logger.warn(f"VIDEO: {video}")
+
         # inverse_direction = "right" if data.direction == "left" else "left"
         await service.start_workflow(
-            data={"zone": data.zones[0], "direction": data.direction}
+            data={"zone": data.zones[0], "direction": direction}
         )
 
 
@@ -147,7 +160,7 @@ class Events:
             # logger.warn(f"result state: {result}")
 
             if self.comfort_set != result:  # theres a difference
-                logger.warn(f"theres a state change!")
+                logger.warn(f"theres a state change! {result}")
 
                 if not self.double_confirm:
                     self.double_confirm = True
@@ -197,31 +210,33 @@ class Events:
 
 
 # FUTURE DEVELOPMENT
-class BedExitEvent(Events):
-    def __init__(self, service, stream, gateway):
-        self.name = "bed_exit"
-        self.service = service
-        self.stream = stream
-        self.loop = asyncio.get_event_loop()
-        self.comfort_set = set()
-        self.rmf_gateway = gateway
+# class BedExitEvent(Events):
+#     def __init__(self, service, stream, gateway):
+#         self.name = "bed_exit"
+#         self.service = service
+#         self.stream = stream
+#         self.loop = asyncio.get_event_loop()
+#         self.comfort_set = set()
+#         self.rmf_gateway = gateway
 
-    async def handler(data, service):
-        if data.classification == "bed_exit":
-            logger.warn(f"bed_exit event triggered")
-            logger.warn(f"ZONE: {data.zones[0]} , direction {data.direction}")
+#     async def handler(data, service):
+#         logger.warn(f"BED EXIT: {data}")
+#         # if data.classification=="bed_exit":
+#         if "bed_exit" in data.classification:
+#             logger.warn(f"bed_exit event triggered")
+#             logger.warn(f"ZONE: {data.zones[0]} , direction {data.direction}")
 
-            inverse_direction = "right" if data.direction == "left" else "left"
+#             inverse_direction = "right" if data.direction == "left" else "left"
 
-            await service.start_workflow(
-                data={"zone": data.zones[0], "direction": inverse_direction}
-            )
+#             await service.start_workflow(
+#                 data={"zone": data.zones[0], "direction": inverse_direction}
+#             )
 
-    async def start(self):
-        logger.warn(f"starting {self.name} listener")
-        self.stream.subscribe(
-            lambda x: self._create_listener(self.handler(data=x, service=self.service))
-        )
+#     async def start(self):
+#         logger.warn(f"starting {self.name} listener")
+#         self.stream.subscribe(
+#             lambda x: self._create_listener(self.handler(data=x, service=self.service))
+#         )
 
 
 _event_manager: Optional[EventManager] = None

@@ -116,6 +116,7 @@ class RmfGateway:
         self.goal_loop_flag = True
         self.bed_exit_goal_handle = None
         self.bed_exit_goal = None
+        self.enable_bed_exit = True
         # self.comfort_trigger = False
         # self.trigger_time = None
 
@@ -157,12 +158,12 @@ class RmfGateway:
 
     async def set_bed_exit(self, mode):
         if mode:
-            # self.logger.info(f'CREATING BED EXIT GOAL')
+            self.enable_bed_exit = True
+            self.logger.info(f"ENABLING BED EXIT")
             # self.bed_exit_goal = asyncio.create_task(self.send_goal("bed_exit"))
-            pass
         else:
-            self.logger.info(f"STOPPING BED EXIT GOAL")
-            pass
+            self.enable_bed_exit = False
+            self.logger.info(f"STOPPING BED EXIT")
             # if self.bed_exit_goal:
             #     self.bed_exit_goal.cancel()
             #     self.bed_exit_goal = None
