@@ -42,7 +42,7 @@ class AdmitWardFlow:
         # demo_env = app_config.demo_env
         aw_robot = app_config.environments["aw_robot"]
         aw_fleet = app_config.environments["aw_fleet"]
-        iso_bed = app_config.environments["iso_bed"]
+        iso_bed = app_config.environments["aw_bed"]
         trigger_url = app_config.aw["check_aw_exit"]
 
         # overwrite params
@@ -53,17 +53,17 @@ class AdmitWardFlow:
         admit_ward_service = Rmf2Service(name="admit_ward")
 
         # AP1 workaround : go to lift zone in order to enter lift
-        aw_lift_data = {
-            "category": "zone",
-            "start": "lift_waiting",
-            "robot": self.robot_id,
-            "fleet": self.robot_fleet,
-            "zoneType": "all",
-        }
+        # aw_lift_data = {
+        #     "category": "zone",
+        #     "start": "lift_waiting",
+        #     "robot": self.robot_id,
+        #     "fleet": self.robot_fleet,
+        #     "zoneType": "all",
+        # }
 
-        send_aw_lift = SequenceRoboticTask(
-            name="send_aw", serviceId=admit_ward_service.id, data=aw_lift_data
-        )
+        # send_aw_lift = SequenceRoboticTask(
+        #     name="send_aw", serviceId=admit_ward_service.id, data=aw_lift_data
+        # )
 
         # AP1 workaround : go to door 1 before entering bed zone
         aw_door_data = {
@@ -103,7 +103,7 @@ class AdmitWardFlow:
         trigger_aw_check = SequenceApiCall(name="trigger_aw_check", data=trigger_data)
 
         admit_ward_service.tasks = [
-            send_aw_lift,
+            # send_aw_lift,
             send_aw_door,
             send_aw,
             notify_aw_receiver,
