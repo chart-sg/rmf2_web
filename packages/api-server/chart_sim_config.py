@@ -24,6 +24,7 @@ config.update(
             "aw_robot": "piimo_1",
             "aw_fleet": "tinyRobot",
             "aw_charger": "aw_charger",
+            "aw_bed": "ward",
             "iso_bed": "bed_1",
         },
         # event driven
