@@ -87,6 +87,11 @@ class AlertRepository:
         alert.update_from_dict({"user_action": ""})
         await alert.save()
 
+    async def delete_alerts(self):
+        alert = await ttm.Alert.all().delete()
+        logger.info("All alerts have been deleted.")
+        return alert
+
     async def snooze_alert(self, alert_id: str) -> Optional[ttm.AlertPydantic]:
 
         logger.error(f"Snoozing Alert with ID {alert_id}")

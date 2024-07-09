@@ -107,3 +107,11 @@ async def acknowledge_alert(
         raise HTTPException(404, f"Could not acknowledge alert with ID {alert_id}")
     alert_events.alerts.on_next(alert)
     return alert
+
+
+@router.delete("", status_code=201)
+async def delete_alerts(repo: AlertRepository = Depends(alert_repo_dep)):
+    alert = await repo.delete_alerts()
+    if alert is None:
+        raise HTTPException(404, f"Could not delete alerts")
+    return {"status": "Alerts deleted"}
