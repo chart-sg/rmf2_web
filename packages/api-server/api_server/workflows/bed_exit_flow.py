@@ -34,6 +34,7 @@ class BedExitFlow:
 
             place = "bed_left" if data["direction"] == "left" else "bed_right"
             direction = data["direction"]
+            video = data["other"]
             angle = -45 if data["direction"] == "left" else -135
         except AttributeError:
             raise ZoneDirectionError("Missing required attribute(s) zone and direction")
@@ -76,6 +77,7 @@ class BedExitFlow:
             location=place,
             userGroup="iso_nurse",
             messageAction="telepresence",
+            other=video,
         )
 
         temi_sequence_data = {
