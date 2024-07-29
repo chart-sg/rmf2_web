@@ -45,6 +45,7 @@ class StateMonitor:
             "sensor_state": {str: PydanticModel},
         }
         self.comfort_slot = set()
+        self.aw_in_ff = False
 
     async def start(self):
         self.rmf.door_states.subscribe(lambda x: self.listener(x, "door_state"))
@@ -94,6 +95,12 @@ class StateMonitor:
             return self.states["task_state"][id]
         return None
 
+    def update_aw_in_ff(self, flag: bool):
+        self.aw_in_ff = flag
+
+    def get_aw_in_ff(self):
+        return self.aw_in_ff
+
     def update_comfort_slots(self, updated_slot):
         self.comfort_slot = updated_slot
 
@@ -111,6 +118,23 @@ class StateMonitor:
                     if f"{action} [place:{place}" in event.name:
                         if f"{action} [place:{place}_entry]" in event.name:
                             continue
+                        return event.status.value
+                else:
+                    if event.name == action:
+                        return event.status.value
+        return None
+
+    # WORKAROUND: to check if AW has completed its go to FF zone task
+    def get_ff_place(self, task_data: TaskState, action: str, place: str = ""):
+        # self.logger.warn(f"TASK STATUS: {task_data}")
+        for phase in task_data.phases.values():
+            for event in phase.events.values():
+                if place:
+                    # if event.name == f"{action} [place:{place}]":
+                    if f"{action} [place:{place}" in event.name:
+                        if f"{action} [place:{place}_entry]" in event.name:
+                            continue
+                        self.logger.warn(f"FF PLACE!!: {event.name}")
                         return event.status.value
                 else:
                     if event.name == action:

@@ -412,7 +412,6 @@ class SequenceMilkRun(ServiceSequence):
             name="send_robot", serviceId=self.service_id, data=pudu_data
         )
         await send_robot_task.start()
-        # pudu_client().publish(f"/robot/playSound", json.dumps({"audio": "1"}))
         play_sound = SequencePuduTask(name="play_sound", delay=self.delay)
         await play_sound.start()
 
@@ -451,42 +450,26 @@ class SequenceRoboticTask(ServiceSequence):
             status = self.sm.get_task_action_status(task, action, place)
 
             if status in ["completed"]:
+                # WORKAROUND: to check if AW has completed it go to FF zone task
+                if place == "ff":
+                    # AW IS IN FF ZONE
+                    logger.info(f"AW IN FF ZONE")
+                    self.sm.update_aw_in_ff(flag=True)
+                logger.info(f"{self.name} task (robotic) completed")
                 await self.onComplete()
             elif status in ["failed", "canceled"]:
                 await self.onFail()
             else:
-                pass  # task still in progress
+                if self.data["robot"] == "piimo_1":
+                    self.sm.update_aw_in_ff(flag=False)
 
     async def onComplete(self):
         logger.info(f"{self.name} task (robotic) completed")
         self.complete_event.set()
-        await self.process_next(status="pass")
-        # if not self.end_condition_event.is_set():
 
     async def onFail(self):
         logger.info(f"{self.name} task (robotic) failed")
         self.complete_event.set()
-        await self.process_next(status="fail")
-
-    async def process_next(self, status: str = "pass"):
-
-        self.out_data = {"task_id": self.task_id}
-        if status == "pass":
-            if self.next_task:
-                if isinstance(self.next_task, list):
-                    await asyncio.gather(
-                        *(task.start(self.out_data) for task in self.next_task)
-                    )
-                else:
-                    await self.next_task.start(self.out_data)
-        elif status == "fail":
-            if self.fail_task:
-                if isinstance(self.fail_task, list):
-                    await asyncio.gather(
-                        *(task.start(self.out_data) for task in self.fail_task)
-                    )
-                else:
-                    await self.fail_task.start(self.out_data)
 
     async def start(self, start_data=None):
         logger.info(f"{self.name} task (robotic) started")

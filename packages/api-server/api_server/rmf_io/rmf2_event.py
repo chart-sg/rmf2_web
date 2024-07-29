@@ -73,12 +73,26 @@ class EventManager:
         self.sensor = sensor_events
         self.logger = logger
         self.rmf_gateway = rmf_gateway()
+        self.take = None
 
     def _create_task(self, coro: Coroutine):
-        task = self._loop.create_task(coro)
+        self.task = self._loop.create_task(coro)
 
-    async def stop(self, event: str):
-        pass
+    async def stop_event(self, event_name: str):
+        for event in self.event_objects:
+            if event.name == event_name:
+                await event.stop()
+                self.event_objects.remove(event)
+                logger.info(f"Stopped and removed event: {event_name}")
+                return
+        logger.warning(f"Event {event_name} not found")
+
+    async def add_event(self, event):
+
+        # if event == "bed_exit"
+        self.event_objects.append(event)
+        self._create_task(event.start())
+        logger.info(f"Added and started event: {event.name}")
 
     async def start(self):
         self._loop = asyncio.get_event_loop()
@@ -111,7 +125,8 @@ class EventManager:
 
         if app_config.event["bed_exit"]:
             # asyncio.create_task(self.rmf_gateway.set_bed_exit(True))
-            asyncio.create_task(self.rmf_gateway.send_goal("bed_exit"))
+            # asyncio.create_task(self.rmf_gateway.send_goal("bed_exit"))
+            # asyncio.create_task(self.rmf_gateway.set_bed_exit(mode=True))
             self.event_objects.append(bed_exit)
 
         if app_config.event["milk_run"]:
@@ -138,10 +153,11 @@ class Events:
         self.handler = handler
         self.stream = stream
         self.loop = asyncio.get_event_loop()
-        self.comfort_set = set()
+        self.comfort_set = set(["comfort_1", "comfort_3"])
         self.rmf_gateway = gateway
         self.state_monitor = stateMonitor()
         self.double_confirm = False
+        self.subscription = None
 
     # async def condition_handler(self, data):
     #     if data.classification == "bed_exit":
@@ -154,10 +170,11 @@ class Events:
 
             result = self.state_monitor.get_comfort_slots()
             result = set(result)
-            # logger.warn(f"ASRAF GET comfort slots: {result}")
+            aw_in_ff = self.state_monitor.get_aw_in_ff()
+            logger.warn(f"IS AW INSIDE? {aw_in_ff}")
 
-            # logger.warn(f"saved state: {self.comfort_set}")
-            # logger.warn(f"result state: {result}")
+            logger.warn(f"saved state: {self.comfort_set}")
+            logger.warn(f"result state: {result}")
 
             if self.comfort_set != result:  # theres a difference
                 logger.warn(f"theres a state change! {result}")
@@ -173,7 +190,7 @@ class Events:
                 logger.warn(f"FINAL SET: {final_set}")
                 self.comfort_set = result
 
-                if final_set:  # if someone new came in
+                if final_set and aw_in_ff:  # if new AW came in
                     logger.warn(f"{final_set} IS NEWLY OCCUPIED!")
                     sorted_list = sorted(list(final_set))
 
@@ -194,7 +211,7 @@ class Events:
             await asyncio.sleep(5)
 
     async def start(self):
-        logger.warn(f"starting {self.name} listener")
+        # logger.warn(f"starting {self.name} listener")
 
         if self.name == "milk_run":
             task = self._create_listener(self.milk_run())
@@ -204,6 +221,14 @@ class Events:
                     self.handler(data=x, service=self.service)
                 )
             )
+
+    async def stop(self):
+        logger.info(f"stopping {self.name} listener")
+        if self.subscription:
+            self.subscription.dispose()
+            self.subscription = None
+        if self.task:
+            self.task.cancel()
 
     def _create_listener(self, coro: Coroutine):
         task = self.loop.create_task(coro)

@@ -18,6 +18,7 @@ config.update(
             "pudu_fleet": "tinyRobot",
             "pudu_charger": "pudu_charger",
             "pudu_start": "pudu_charger",
+            "pudu_scm": "scm",
             "temi_robot": "bed_responder",
             "temi_fleet": "tinyRobot",
             "temi_charger": "temi_charger",
@@ -28,7 +29,7 @@ config.update(
             "iso_bed": "bed_1",
         },
         # event driven
-        "event": {"bed_exit": True, "milk_run": True, "mqtt": False},
+        "event": {"bed_exit": True, "milk_run": False, "test": True},
         # temi configs
         "temi": {
             "temi_id": "00119140017",
@@ -40,6 +41,7 @@ config.update(
             "moving_off_long": "foo.wav",
             "moving_off_short": "foo.wav",
             "host_url": "http://10.233.29.240:8113/",
+            "play_voice_wait": "http://10.233.29.219:8113/play_voice?data=please_stay_seated.wav",
             "check_aw_exit": "http://10.233.29.65:3001/check-aw-exit",
             "voice_endp": "64a39c872e9477138cdd2e8e",
             "get_buckle_endp": "http://10.233.29.84:3001/check-aw-exit",

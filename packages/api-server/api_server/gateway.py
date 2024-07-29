@@ -4,12 +4,14 @@ import asyncio
 import base64
 import hashlib
 import logging
+import uuid
 from time import sleep
 from typing import Any, List, Optional
 
 import rclpy
 import rclpy.client
 import rclpy.qos
+from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Time as RosTime
 from fastapi import HTTPException
 from rclpy.action import ActionClient
@@ -102,12 +104,6 @@ class RmfGateway:
             ros_node(), ObjectQuery, "request_object_query"
         )
 
-        # kick start events!
-        # if app_config.event['bed_exit']:
-        #     asyncio.create_task(self.send_goal("bed_exit"))
-        # if app_config.event['milk_run']:
-        #     asyncio.create_task(self.goal_loop())
-
         self.cached_files = cached_files
         self.logger = logger or base_logger.getChild(self.__class__.__name__)
         self._subscriptions: List[Subscription] = []
@@ -117,12 +113,20 @@ class RmfGateway:
         self.bed_exit_goal_handle = None
         self.bed_exit_goal = None
         self.enable_bed_exit = True
+        self.current_bed_exit_id = None
         # self.comfort_trigger = False
         # self.trigger_time = None
 
         self._subscribe_all()
 
-    def obj_feedback_callback(self, feedback_msg):
+    def obj_feedback_callback(self, feedback_msg, goal_id=None):
+
+        # WORKAROUND: only trigger bed exit for current goal handle
+        if goal_id:
+            if goal_id != self.current_bed_exit_id:
+                self.logger.info("Ignoring feedback for previous goal")
+                return
+
         feedback_hash = hashlib.sha256(str(feedback_msg).encode()).hexdigest()
         # check if we received this feedback_msg before
         if feedback_hash in self.msg_hash_set:
@@ -156,20 +160,46 @@ class RmfGateway:
             await asyncio.sleep(5)
         stateMonitor().update_comfort_slots(set())
 
+    # ISSUE: unable to cancel bed exit goal handle
     async def set_bed_exit(self, mode):
+
+        # clear bed_exit task and handle
+        if self.bed_exit_goal is not None:
+            self.logger.info(f"cancelling existing BED EXIT goal")
+            self.bed_exit_goal.cancel()
+            self.bed_exit_goal = None
+
+        if self.bed_exit_goal_handle is not None:
+            self.logger.info(f"cancelling existing BED EXIT goal handle")
+            cancel_result = await self.bed_exit_goal_handle.cancel_goal_async()
+            self.logger.info(f"cancel result: {cancel_result}")
+
+            # Check the status of the goal after cancellation
+            status = self.bed_exit_goal_handle.status
+            self.logger.info(f"Goal status after cancellation: {status}")
+
+            if status == GoalStatus.STATUS_CANCELED:
+                self.logger.info("Goal successfully canceled")
+            else:
+                self.logger.warning(f"Goal not canceled, current status: {status}")
+
+            self.bed_exit_goal_handle = None
+
+        self.enable_bed_exit = mode
+
         if mode:
-            self.enable_bed_exit = True
+            # self.enable_bed_exit = True
             self.logger.info(f"ENABLING BED EXIT")
-            # self.bed_exit_goal = asyncio.create_task(self.send_goal("bed_exit"))
+
+            # create bed exit task
+            self.bed_exit_goal = asyncio.create_task(self.send_goal("bed_exit"))
+
         else:
-            self.enable_bed_exit = False
-            self.logger.info(f"STOPPING BED EXIT")
-            # if self.bed_exit_goal:
-            #     self.bed_exit_goal.cancel()
-            #     self.bed_exit_goal = None
+            # self.enable_bed_exit = False
+            self.logger.info(f"STOPPED BED EXIT")
 
     async def send_goal(self, goal_type: str):
-        # self.logger.info(f'ObjectQuery: sending {goal_type} goal')
+        self.logger.info(f"ObjectQuery: sending {goal_type} goal")
         goal_msg = ObjectQuery.Goal()
 
         if goal_type == "bed_exit":
@@ -191,8 +221,23 @@ class RmfGateway:
         # try:
         self._obj_query_client.wait_for_server()
 
+        # WORKAROUND: unique goal id to workaround goal handle cant cancel issue
+        if goal_type == "bed_exit":
+            # Generate a unique identifier for the new goal
+            self.current_bed_exit_id = uuid.uuid4()
+            goal_id = self.current_bed_exit_id
+        else:
+            goal_id = None
+
+        # goal_handle = await self._obj_query_client.send_goal_async(
+        #     goal=goal_msg, feedback_callback=self.obj_feedback_callback
+        # )
+
         goal_handle = await self._obj_query_client.send_goal_async(
-            goal=goal_msg, feedback_callback=self.obj_feedback_callback
+            goal=goal_msg,
+            feedback_callback=lambda feedback: self.obj_feedback_callback(
+                feedback, goal_id
+            ),
         )
         await asyncio.sleep(1)
 
@@ -203,14 +248,6 @@ class RmfGateway:
             result = await goal_handle.get_result_async()
 
         stateMonitor().update_comfort_slots(self.comfort_list)
-
-        # except asyncio.CancelledError:
-        #     # handle the cancellation here
-        #     self.logger.info(f'{goal_type} goal cancelled')
-        #     if goal_type == "bed_exit" and self.bed_exit_goal_handle is not None:
-        #         await self.bed_exit_goal_handle.cancel_goal_async()
-        #         self.bed_exit_goal_handle = None
-        #     return
 
         return self.comfort_list
 

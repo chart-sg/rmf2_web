@@ -44,6 +44,7 @@ class AdmitWardFlow:
         aw_fleet = app_config.environments["aw_fleet"]
         iso_bed = app_config.environments["aw_bed"]
         trigger_url = app_config.aw["check_aw_exit"]
+        voice_wait_url = app_config.aw["play_voice_wait"]
 
         # overwrite params
         self.robot_fleet = aw_fleet
@@ -98,6 +99,9 @@ class AdmitWardFlow:
             patientId=self.patientId,
         )
 
+        aw_wait_data = {"url": voice_wait_url, "method": "POST"}
+        aw_wait_sound = SequenceApiCall(name="aw_wait_sound", data=aw_wait_data)
+
         trigger_data = {"url": trigger_url, "method": "GET"}
 
         trigger_aw_check = SequenceApiCall(name="trigger_aw_check", data=trigger_data)
@@ -107,6 +111,7 @@ class AdmitWardFlow:
             send_aw_door,
             send_aw,
             notify_aw_receiver,
+            aw_wait_sound,
             trigger_aw_check,
         ]
         try:

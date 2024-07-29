@@ -42,7 +42,7 @@ class AdhocDeliveryFlow:
         pudu_robot = app_config.environments["pudu_robot"]
         pudu_fleet = app_config.environments["pudu_fleet"]
         pudu_charger = app_config.environments["pudu_charger"]
-        pudu_scm = app_config.environments["pudu_start"]
+        pudu_scm = app_config.environments["pudu_scm"]
         iso_bed = app_config.environments["iso_bed"]
         delivery_delay = app_config.delays["delivery"]
 

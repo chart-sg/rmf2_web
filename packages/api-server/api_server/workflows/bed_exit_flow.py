@@ -34,7 +34,10 @@ class BedExitFlow:
 
             place = "bed_left" if data["direction"] == "left" else "bed_right"
             direction = data["direction"]
-            video = data["other"]
+
+            # ISSUE: to debug why i'm not receiving the other field
+            # video = data["other"]
+            video = "test"
             angle = -45 if data["direction"] == "left" else -135
         except AttributeError:
             raise ZoneDirectionError("Missing required attribute(s) zone and direction")

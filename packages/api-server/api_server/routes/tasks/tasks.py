@@ -248,6 +248,7 @@ async def post_service_task(service_task: ServiceTask):
         workflow = AdhocDeliveryFlow(service_task)
     # return robot
     elif service_task.service_name == ServiceType.return_robot:
+        # WORKAROUND: return temi via mqtt
         if service_task.data.robot_id == "bed_responder":
             logger.info(f"PUBLISH TEMI TO CHARGER!")
             mqtt_client().publish(

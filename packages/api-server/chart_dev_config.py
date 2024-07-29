@@ -18,6 +18,7 @@ config.update(
             "pudu_fleet": "pudubot2",
             "pudu_charger": "standby",
             "pudu_start": "blanki_start",
+            "pudu_scm": "scm",
             "temi_robot": "bed_responder",
             "temi_fleet": "Temi",
             "temi_charger": "temi_charger",
@@ -28,7 +29,7 @@ config.update(
             "iso_bed": "bed_2",
         },
         # event driven
-        "event": {"bed_exit": True, "milk_run": True, "mqtt": False},
+        "event": {"bed_exit": True, "milk_run": True, "test": True},
         # temi configs
         "temi": {
             "temi_id": "00119140017",
@@ -39,7 +40,8 @@ config.update(
         "aw": {
             "moving_off_long": "foo.wav",
             "moving_off_short": "foo.wav",
-            "host_url": "http://10.233.29.240:8113/",
+            "host_url": "http://10.233.29.219:8113/",
+            "play_voice_wait": "http://10.233.29.219:8113/play_voice?data=please_stay_seated.wav",
             "check_aw_exit": "http://10.233.29.65:3001/check-aw-exit",
             "voice_endp": "64a39c872e9477138cdd2e8e",
             "get_buckle_endp": "http://10.233.29.84:3001/check-aw-exit",
@@ -50,7 +52,7 @@ config.update(
             "milk_run": 5,
             "delivery": 15,
             "aw_end": 30,
-            "orientation_video": 60,
+            "orientation_video": 30,
             "responder_delay": 1,
         },
     }

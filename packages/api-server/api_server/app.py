@@ -43,6 +43,10 @@ from .rmf_io import (
     task_events,
 )
 from .rmf_io.rmf2_event import eventManager
+from .rmf_io.rmf2_events.bed_exit_event import bedExitEvent
+
+# from .rmf_io.rmf2_events.rmf2_event_dev import eventManagerDev
+from .rmf_io.rmf2_events.rmf2_eventz import eventManagerz
 from .rmf_io.state_monitor import stateMonitor
 from .types import is_coroutine
 
@@ -222,8 +226,17 @@ async def on_startup():
 
     event_manager = eventManager(sensor_events=sensor_events)
     asyncio.create_task(event_manager.start())
+    logger.warn("started OLD event manager")
+
+    # event_manager_dev = eventManagerDev(sensor_events=sensor_events)
+    # logger.warn("started NEW event manager")
+    # asyncio.create_task(event_manager_dev.start())
+    # await event_manager_dev.add_event(bedExitEvent())
+
+    # event_manager_latest = eventManagerz(sensor_events=sensor_events)
+    # asyncio.create_task(event_manager_latest.start())
+    # logger.warn("started latest event manager")
     # await event_manager.start()
-    logger.warn("started asraf event manager")
 
 
 @app.on_event("shutdown")
