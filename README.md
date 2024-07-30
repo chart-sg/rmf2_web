@@ -1,24 +1,29 @@
-[![Nightly](https://github.com/open-rmf/rmf-web/actions/workflows/nightly.yml/badge.svg)](https://github.com/open-rmf/rmf-web/actions/workflows/nightly.yml) [![Dashboard End-to-End](https://github.com/open-rmf/rmf-web/actions/workflows/dashboard-e2e.yml/badge.svg)](https://github.com/open-rmf/rmf-web/actions/workflows/dashboard-e2e.yml) [![react-components](https://github.com/open-rmf/rmf-web/workflows/react-components/badge.svg)](https://github.com/open-rmf/rmf-web/actions?query=workflow%3Areact-components+branch%3Amain) [![dashboard](https://github.com/open-rmf/rmf-web/workflows/dashboard/badge.svg)](https://github.com/open-rmf/rmf-web/actions?query=workflow%3Adashboard+branch%3Amain) [![api-server](https://github.com/open-rmf/rmf-web/workflows/api-server/badge.svg)](https://github.com/open-rmf/rmf-web/actions?query=workflow%3Aapi-server+branch%3Amain) [![rmf-auth](https://github.com/open-rmf/rmf-web/actions/workflows/rmf-auth.yml/badge.svg)](https://github.com/open-rmf/rmf-web/actions/workflows/rmf-auth.yml) [![ros-translator](https://github.com/open-rmf/rmf-web/actions/workflows/ros-translator.yml/badge.svg)](https://github.com/open-rmf/rmf-web/actions/workflows/ros-translator.yml) [![api-client](https://github.com/open-rmf/rmf-web/actions/workflows/api-client.yml/badge.svg)](https://github.com/open-rmf/rmf-web/actions/workflows/api-client.yml) [![codecov](https://codecov.io/gh/open-rmf/rmf-web/branch/main/graph/badge.svg)](https://codecov.io/gh/open-rmf/rmf-web)
 
-# RMF Web
 
-![](https://github.com/open-rmf/rmf-web/blob/media/dashboard_office_world.gif)
+# RMF2 Web
 
-Open-RMF Web is a collection of packages that provide a web-based interface for users to visualize and control all aspects of Open-RMF deployments.
+RMF2 Web is an extension of Open-RMF Web. It is an effort to make the UI components more user friendly and abstract from RMF. Changes are done mainly on the API server, which acts as a bridge between the Healthcare Integrator (HI) mobile app and Chart-RMF. RMF dashboard is still compatible with the updated API server, usually for robot task monitoring. 
 
+> **Note**
+> HI package is not part of RMF2 Web
+
+Updated features include:
+- Task Packages
+- Enhanced Alerts
+- Event Driven Task (bed exit & blanket milk run)
+
+Packages
 - [Getting started](#getting-started)
 - [API server](packages/api-server)
 - [API client](packages/api-client)
 - [Dashboard](packages/dashboard)
 - [Configuration](#configuration)
-- [Contribution guide](#contribution-guide)
-- [Roadmap](https://github.com/open-rmf/rmf-web/wiki/Open-RMF-Web-Dashboard)
 
 # Getting started
 
 ### Prerequisites
 
-We currently support [Ubuntu 22.04](https://releases.ubuntu.com/jammy/), [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) and Open-RMF's [22.09](https://github.com/open-rmf/rmf/releases/tag/22.09) release. Other distributions may work as well, but is not guaranteed.
+We currently support [Ubuntu 22.04](https://releases.ubuntu.com/jammy/), [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) and CHART-RMF's [AP1](https://github.com/chart-sg/rmf2_ros2/tree/development) branch. Other distributions may work as well, but is not guaranteed.
 
 Install [nodejs](https://nodejs.org/en/download/package-manager/) >= 16,
 ```bash
@@ -43,14 +48,32 @@ For Debian/Ubuntu systems, you may need to install `python3-venv` first.
 sudo apt install python3-venv
 ```
 
-### Installing Open-RMF
+### PostgreSQL
+The API server makes use of PostgreSQL 'bare metal'. The defaults are for PostgreSQL to be listening on 127.0.0.1:5432.
 
-Refer to the following documentation for either building from source or installing released binaries:
+#### Bare Metal
+```
+apt install postgresql postgresql-contrib -y
+# Set a default password
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
 
-* [rmf](https://github.com/open-rmf/rmf)
+sudo systemctl restart postgresql
+# interactive prompt
+sudo -i -u postgres
+```
+To manually reset the database:
+```
+sudo -u postgres bash -c "dropdb postgres; createdb postgres"
+```
+
+### Installing Chart-RMF
+
+Refer to the following documentation for building from source. Please refer to 'development' branch
+
+* [rmf](https://github.com/chart-sg/rmf2_main/tree/development)
 
 > **Note**
-> Simulation demos are not part of the released binaries, and therefore a built workspace with at least the [demos repository](https://github.com/open-rmf/rmf_demos) would be required for trying out the web dashboard with simulation.
+> AP1 Simulation demo is currently not available in Chart-RMF
 
 ### Install dependencies
 
@@ -65,8 +88,14 @@ pnpm install -w --filter <package>...
 ```
 
 ### Launching
+The API server should be started manually to work with RMF-Chart deployment on another terminal instance.
 
-Source Open-RMF and launch the dashboard in development mode,
+Source Chart-RMF and launch the API server.
+
+> **Note**
+> Prior to launching API server, RMF 2.0 sensor manager should be running. 
+This is because the API server waits for ROS Action server on launch.
+### API server
 ```bash
 # For binary installation
 source /opt/ros/humble/setup.bash
@@ -74,23 +103,25 @@ source /opt/ros/humble/setup.bash
 # For source build
 source /path/to/workspace/install/setup.bash
 
-cd packages/dashboard
-pnpm start
+# start API server in development mode
+cd packages/api-server
+pnpm start:dev
 ```
 
-This starts up the API server (by default at port 8000) which sets up endpoints to communicate with an Open-RMF deployment, as well as begin compilation of the dashboard. Once completed, it can be viewed at [localhost:3000](http://localhost:3000).
+This starts up the API server (by default at port 8000) which sets up endpoints to communicate with an Chart-RMF deployment.
 
-If presented with a login screen, use `user=admin password=admin`.
+Ensure that the fleet adapters in the Chart-RMF deployment is configured to use the endpoints of the API server, `http://[SERVER_URI]:8000/_internal`. 
 
-Ensure that the fleet adapters in the Open-RMF deployment is configured to use the endpoints of the API server. By default it is `http://localhost:8000/_internal`. Launching a simulation from `rmf_demos_gz` for example, the command would be,
+Launching pimo fleet adapter for example, the command would be,
 
 ```bash
-ros2 launch rmf_demos_gz office.launch.xml server_uri:="http://localhost:8000/_internal"
+ros2 launch ff_panasonic piimo_robot_adapter.launch.xml server_uri:="http://10.233.29.67:8000/_internal"
 ```
 
-### Optimized build
 
-The dashboard can also be built statically for better performance.
+### RMF dashboard (optional)
+
+Once the dashboard the built is completed, it can be viewed at [SERVER_URI:3000](http://localhost:3000).
 
 ```bash
 cd packages/dashboard
@@ -101,34 +132,26 @@ npm install -g serve
 serve -s build
 ```
 
-This only serves the frontend, the API server can be started manually to work with an Open-RMF deployment on another terminal instance,
+## Postman (optional) 
+Instead of using the HI UI, the api requests can be triggered using postman.
+Import the following RMF API server collection and environment from the [postman folder](packages/api-server/postman/)
 
-```bash
-# source Open-RMF before proceeding
-cd packages/api-server
-pnpm start
-```
+# Configuration
+
+Make changes to [AP1 dev config](packages/api-server/chart_dev_config.py) for items related to 
+* robot name / fleet
+* switching events on / off
+* ip address
+* delay timings
 
 # Contribution guide
 
 * For general contribution guidelines, see [CONTRIBUTING](CONTRIBUTING.md).
 * Follow [typescript guidelines](https://basarat.gitbook.io/typescript/styleguide).
-* When introducing a new feature or component in [`react-components`](packages/react-components), write tests and stories.
-* When introducing a new feature in [`dashboard`](packages/dashboard), write tests as well as [e2e](packages/dashboard-e2e) test whenever possible.
 * When introducing API changes with [`api-server`](packages/api-server),
   * If the new changes are to be used externally (outside of the web packages, with other Open-RMF packages for example), make changes to [`rmf_api_msgs`](https://github.com/open-rmf/rmf_api_msgs), before generating the required models using [this script](packages/api-server/generate-models.sh) with modified commit hashes.
   * Don't forget to update the API client with the newly added changes with [these instructions](packages/api-client/README.md/#generating-rest-api-client).
 * Check out the latest API definitions [here](https://open-rmf.github.io/rmf-web/docs/api-server), or visit `/docs` relative to your running server's url, e.g. `http://localhost:8000/docs`.
 * Develop the frontend without launching any Open-RMF components using [storybook](packages/dashboard/README.md/#storybook).
 
-# Configuration
 
-See the [rmf-dashboard](packages/dashboard/README.md#configuration) docs.
-
-# Troubleshooting
-
-* If a feature is missing or is not working, it could be only available in an Open-RMF source build, and not in the binaries. Try building Open-RMF from source and source that new workspace before launching the API server. `rmf-web` may use in-development features of Open-RMF.
-
-* Creating tasks from the web dashboard when running a simulated Open-RMF deployment will require the task start time suit simulation time, which starts from unix millis 0. Try creating the same task with a start date of before the year of 1970.
-
-* Check if the issue has already been [reported or fixed](https://github.com/open-rmf/rmf-web/issues).

@@ -378,14 +378,14 @@ class SequenceMilkRun(ServiceSequence):
                 self.delivered_zones.add(self.location)
                 self.start_location = None
                 logger.info(f"SENDING PUDU TO SPECIFIED {self.location}")
-                await self.send_robot(self.location)
+                await self.send_robot(self.pudu_robot, self.pudu_fleet, self.location)
             # if still have undelivered, send pudu to undelivered zone
             elif undelivered_zones:
                 self.pudu_moved = True
                 self.location = undelivered_zones.pop(0)
                 self.delivered_zones.add(self.location)
                 logger.info(f"SENDING PUDU TO SORTED {self.location}")
-                await self.send_robot(self.location)
+                await self.send_robot(self.pudu_robot, self.pudu_fleet, self.location)
                 logger.info(f"undelivered zones after moving off {undelivered_zones}")
             # return pudu if all delivered
             elif self.pudu_moved and not undelivered_zones:
@@ -398,13 +398,13 @@ class SequenceMilkRun(ServiceSequence):
 
         logger.info(f"MILKRUN SEQUENCE COMPLETED!")
 
-    async def send_robot(self, location):
+    async def send_robot(self, robot, fleet, location):
 
         pudu_data = {
             "category": "zone",
             "start": location,
-            "robot": self.pudu_robot,
-            "fleet": self.pudu_fleet,
+            "robot": robot,
+            "fleet": fleet,
             "zoneType": "all"
             # "delay": self.delay
         }
